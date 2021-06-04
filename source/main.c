@@ -63,12 +63,6 @@ static unsigned char round = 0;
 enum Game_States {sequence};
 int TickFct_Game(int state){
 
-	if (round < 3){
-		++round;
-	}
-	else{	
-		round = 1;
-	}
 	//static unsigned char column = 0x00; 
 	//static unsigned char row = 0x00; 
 	unsigned char quarter = 0;
@@ -114,14 +108,14 @@ int TickFct_Game(int state){
 						while (loop < 100000){
 							PORTC = 0xE0;	
 							PORTD = ~(0x18);
-							+loop;
+							++loop;
 						}
 						loop = 0;
 
 						while (loop < 50000){
 							PORTC = 0x00;	
 							PORTD = ~(0x00);
-							+loop;
+							++loop;
 						}
 						loop = 0;
 						break;
@@ -150,84 +144,57 @@ int TickFct_Game(int state){
 	return state; 
 }
 
-/*
-
-enum TopLeft_States {init, hold1, hold2, hold3, hold4, off1}; //testing 4 quarters
-int TickFct_TopLeft(int state) {
-
-	// Local Variables
-	static unsigned char column = 0x00;	// LED column - 0: LED off; 1: LED on
-	static unsigned char row = 0x00;  	// Row(s) displaying column. 
-							// 0: display column on row
-							// 1: do NOT display column on row
-	// Transitions
-	switch (state) {
+enum Input_states {init, wait, check};
+int TickFct_Input(int state){
+	char buttons = ~PINA;
+	unsigned char press = 0;
+	switch (state){
 		case init:
-			state = hold1;
+			PORTC = 0x00;
+			PORTD = ~(0x00);
+			state = wait;
 			break;
 
-		case hold1:	
-			state = hold2;
+		case wait:
+			if (buttons == 0x00){
+				state = wait; 			
+			}
+			else if (buttons == 0x01){
+				state = check;
+				press = 1;
+			}
+			else if (buttons == 0x02){
+				state = check;
+				press = 2;
+			}
+			else if (buttons == 0x04){
+				state = check;
+				press = 3;
+			}
+			else if (buttons == 0x08){
+				state = check;
+				press = 4;
+			}
 			break;
 
-		case hold2:	
-			state = hold3;
-			break;
-
-		case hold3:	
-			state = hold4;
-			break;
-
-		case hold4:	
-			state = off1;
-			break;
-
-		case off1:
-			state = hold1;
-			break;
-
-		default:	
-			state = init;
-			break;
-	}	
-	// Actions
-	switch (state) {
-		case init:
-			break;
-		case hold1:
-			column = 0xE0;	
-			row = 0x03;
-			break;
-
-		case hold2:
-			column = 0x07;	
-			row = 0x03;
-			break;
-
-		case hold3:
-			column = 0xE0;	
-			row = 0x18;
-			break;
-
-		case hold4:
-			column = 0x07;	
-			row = 0x18;
-			break;	
-
-		case off1:
-			column = 0x00;
-			row = 0x00;	
-
-		default:
+		case check:
+			
 			break;
 	}
 
-	PORTC = column;	// column to display
-	PORTD = ~row;		// Row(s) displaying column	
-	return state;
+	switch (state){
+		case init:
+			break;
+
+		case wait:
+			break;
+
+		case check:
+			break;
+	}
 }
 
-*/
+
 
 int main(void) {
 	/* Insert DDR and PORT initializations */
@@ -278,20 +245,22 @@ int main(void) {
 	
 	
 	Menu_state = waitOn; //initial state for menu 
-    unsigned short i; //scheduler for-loop iterator
+    	unsigned short i; //scheduler for-loop iterator
 	while (1) {
-        if (!start){ //menu function independent as it should only run when the game isn't being played
-            TickFct_Menu();
-        }
-        else{
-		    for (i = 0; i < numTasks; i++){
-			    if (tasks[i].elapsedTime >= tasks[i].period){
+        	if (!start){ //menu function independent as it should only run when the game isn't being played
+            		TickFct_Menu();
+        	}
+        	else{
+			round = 1;
+			for (i = 0; i < numTasks; i++){
+				if (tasks[i].elapsedTime >= tasks[i].period){
 				    tasks[i].state = tasks[i].TickFct(tasks[i].state);
 				    tasks[i].elapsedTime = 0;
-			    }
-			    tasks[i].elapsedTime += tasksPeriodGCD;
-		    }
-        }
+				}
+				tasks[i].elapsedTime += tasksPeriodGCD;
+		    	}
+        	}
+	
 		while(!TimerFlag){};
 		TimerFlag = 0;
 	}
