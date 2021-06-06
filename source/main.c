@@ -27,9 +27,11 @@ static bool inputDone = false; //Determine whether user input is finished
 static unsigned char correctPresses = 0; //Keeps track if the user is pressing correct sequence
 static unsigned char pressCount = 0; //Kepps track of how many buttons have been pressed
 static unsigned char round = 0; //Keeps track of current round
-const unsigned char levels = 3; //Total number of rounds
-char Simon[3] = {1, 4, 3}; //Array that holds the sequence. Numbers 1-4 are mapped to the 4 quarters
-					       //1 = Top Left; 2 = Top Right; 3 = Bottom Left; 4 = Bottom Right
+const unsigned char levels = 5; //Total number of rounds
+char Simon[5] = {1, 2, 2, 3, 4}; //Array that holds the sequence. Numbers 1-4 are mapped to the 4 quarters
+			  //1 = Top Left; 2 = Top Right; 3 = Bottom Left; 4 = Bottom Right
+
+
 //=============================================================================================
 
 
@@ -349,9 +351,9 @@ int main(void) {
 			}
         	}
         	else{
+			gameOver = false;
 			round = 1;
 			while (!gameOver){
-				correctPresses = 0;
 				TickFct_Game();
 				while (!inputDone){
 					if (j >= 1000){
@@ -375,6 +377,8 @@ int main(void) {
 					gameOver = true;
 					start = false;
 				}
+				correctPresses = 0;
+				pressCount = 0;
 			}
         	}
 		
