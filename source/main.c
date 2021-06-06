@@ -21,6 +21,7 @@
 #include "../header/scheduler.h"
 #include "stdbool.h"
 #include "stdlib.h"
+#include "../header/pwm.h"
 #include "time.h"
 
 //=======================Global Variables=====================================================
@@ -31,7 +32,7 @@ static unsigned char correctPresses = 0; //Keeps track if the user is pressing c
 static unsigned char pressCount = 0; //Kepps track of how many buttons have been pressed
 static unsigned char round = 0; //Keeps track of current round
 const unsigned char levels = 5; //Total number of rounds
-int Simon[5]; //Array that holds the sequence. Numbers 1-4 are mapped to the 4 quarters
+char Simon[5]; //Array that holds the sequence. Numbers 1-4 are mapped to the 4 quarters
 			        //1 = Top Left; 2 = Top Right; 3 = Bottom Left; 4 = Bottom Right
 //=============================================================================================
 
@@ -372,11 +373,6 @@ int main(void) {
 
 	const unsigned char timerPeriod = 50;
 
-	//Populate game array with random values
-	srand((int)time(0)); // Unique seed
-	for (unsigned int i = 0; i < levels; ++i){
-		Simon[i] = ((rand() % 4) + 1);
-	}
 
 	//Set the timer and turn it on
 	TimerSet(timerPeriod);
@@ -388,49 +384,56 @@ int main(void) {
 	Input_state = init;
 	GameWon_state = celebration;
 		
-
+	unsigned long seed = 0;
 	unsigned long j = 0; //used to tick input function 
 	while (1) {
         	if (!start){  //menu function as long as there's no input
-				if (Menu_elapsedTime >= 100){
+			if (Menu_elapsedTime >= 100){
             			TickFct_Menu();
-						Menu_elapsedTime = 0;
-				}
+				Menu_elapsedTime = 0;
+				++seed;
+			}
         	}
         	else{
-				gameOver = false; //reset variables
-				round = 1;
-				while (!gameOver){
-					TickFct_Game(); //Display sequence
-					while (!inputDone){
-						if (j >= 1000){
-							TickFct_Input(); //Get user input
-							if (gameOver){
-								break;
-							}
-							j = 0;	
+			//Populate game array with random values
+			srand(seed); // Unique seed
+			for (unsigned char i = 0; i < levels; ++i){
+				Simon[i] = ((rand() % 4) + 1);
+			}
+	
+			gameOver = false; //reset variables
+			round = 1;
+			while (!gameOver){
+				TickFct_Game(); //Display sequence
+				while (!inputDone){
+					if (j >= 1000){
+						TickFct_Input(); //Get user input
+						if (gameOver){
+							break;
 						}
-						++j;
+						j = 0;	
 					}
-					inputDone = false; //reset variable
+					++j;
+				}
+				inputDone = false; //reset variable
 
-					if (correctPresses == round){ //check if the sequence inputted was correct
-						if (round == levels){
-							gameOver = true;
-							start = false;
-							TickFct_GameWon();
-						}
-						else{
-							++round;
-						}
-					}
-					else{
+				if (correctPresses == round){ //check if the sequence inputted was correct
+					if (round == levels){
 						gameOver = true;
 						start = false;
+						TickFct_GameWon();
 					}
-					correctPresses = 0;
-					pressCount = 0;
+					else{
+						++round;
+					}
 				}
+				else{
+					gameOver = true;
+					start = false;
+				}
+				correctPresses = 0;
+				pressCount = 0;
+			}
         	}
 
 		
