@@ -1,3 +1,18 @@
+/*	Author: Zergio Ruvalcaba
+ *	Lab Section: 23
+ *	Assignment: Lab #11
+ *
+ *	Project Description: This is the Simon Says game. An LED Matrix is used and divided into
+ *	4 quarters. On the first round a quarter will light up, and you must then press the button mapped to that quarter.
+ *	Each round from then on the number of quarters that light up increases, starting with the ones that lit in the 
+ *	previous round, creating an increasingly difficult sequence. If you input the wrong sequence, the game ends and restarts. 
+ *	You win if you get through the entire sequence. 
+ *
+ *	I acknowledge all content contained herein, excluding template, provided code, or example
+ *	code, is my own original work.
+ *	
+ *	Demo Link <>
+ */
 #include <avr/io.h>
 #ifdef _SIMULATE_
 #include "simAVRHeader.h"
@@ -6,11 +21,33 @@
 #include "../header/scheduler.h"
 #include "stdbool.h"
 
-static bool start = false; //variable to determine whether game has started or not
+//=======================Global Variables=====================================================
+static bool start = false; //Determine whether game has started or not
+static bool inputDone = false; //Determine whether user input is finished
+static unsigned char correctPresses = 0; //Keeps track if the user is pressing correct sequence
+static unsigned char pressCount = 0; //Kepps track of how many buttons have been pressed
+static unsigned char round = 0; //Keeps track of current round
+const unsigned char levels = 3; //Total number of rounds
+char Simon[3] = {1, 4, 3}; //Array that holds the sequence. Numbers 1-4 are mapped to the 4 quarters
+					       //1 = Top Left; 2 = Top Right; 3 = Bottom Left; 4 = Bottom Right
+//=============================================================================================
+
+
+//=======================Enum declarations=====================================================
 enum Menu_States {waitOn, waitOff, input} Menu_state;
-void TickFct_Menu(){ //Function will flash all 4 quarters as long as there's no input. Aka the game hasn't begun.
-    char buttons = ~PINA;
-    switch (Menu_state){
+enum Game_States {sequence} Game_state;
+enum Input_states {init, wait, check, done} Input_state;
+//=============================================================================================
+
+
+//=======================SM Functions==========================================================
+
+//Function will flash all 4 quarters as long as there's no input. 
+//Aka the game hasn't begun. Once input is detected, start variable is set to true
+void TickFct_Menu(){ 
+    char buttons = ~PINA; //capture button presses
+
+    switch (Menu_state){ //transitions
         case waitOn:
             if (buttons == 0x00){
                 Menu_state = waitOff;
@@ -20,7 +57,7 @@ void TickFct_Menu(){ //Function will flash all 4 quarters as long as there's no 
             }
             break;
         
-	case waitOff:
+		case waitOff:
             if (buttons == 0x00){
                 Menu_state = waitOn;
             }
@@ -30,22 +67,23 @@ void TickFct_Menu(){ //Function will flash all 4 quarters as long as there's no 
             break;
 
         case input:
+			Menu_state = waitOn; //After game is started and finishes, it'll come back here, so set back to initial state
             break;
 
         default:
             break;
     }
 
-    switch (Menu_state){
+    switch (Menu_state){ //actions
         case waitOn:
             PORTC = 0xE7;
             PORTD = ~(0x1B);
             break;
 
-	case waitOff:
-		PORTC = 0x00;
-		PORTD = ~(0x00);
-		break;
+		case waitOff:
+			PORTC = 0x00;
+			PORTD = ~(0x00);
+			break;
 
         case input:
             PORTC = 0x00;
@@ -58,18 +96,17 @@ void TickFct_Menu(){ //Function will flash all 4 quarters as long as there's no 
     }
 }
 
-const unsigned char levels = 3;
-char Simon[3] = {1, 4, 3};
-static unsigned char round = 0;
-enum Game_States {sequence} Game_state;
+
+//Function will display sequence according to current round.
+//This must be done in one tick of the function, so there is only one state.
 void TickFct_Game(){ 
-	unsigned char quarter = 0;
-	unsigned long loop = 0;
+	unsigned char quarter = 0; //Used to check which quarter should light up according to the sequence
+	unsigned long loop = 0; //Used to light LED for about a second since this is done in one tick
 	
 	switch (Game_state) {
 		case sequence:
-			for (unsigned char i = 0; i < round; ++i){
-				quarter = Simon[i];
+			for (unsigned char i = 0; i < round; ++i){ //For loop runs depending on the current round
+				quarter = Simon[i]; 
 				switch (quarter){
 					case 1:
 						while (loop < 100000){
@@ -138,14 +175,15 @@ void TickFct_Game(){
 	} 
 }
 
-static unsigned char correctPresses = 0;
-unsigned char pressCount = 0;
-bool inputDone = false;
-enum Input_states {init, wait, check, done} Input_state;
+
+//Function will wait for user input. When there's an input, the corresponding quarter will light up
+//and the input will be compared with the expected sequence, if input is correct, correctPresses is
+//increased so that it can be checked against the current round. If input is wrong, game will end.
 void TickFct_Input(){
-	unsigned long loop = 0;
-	char buttons = ~PINA;
-	unsigned char press = 0;
+	unsigned long loop = 0; //Used to light up LED after input is detected
+	char buttons = ~PINA; //Used to capture button presses
+	unsigned char press = 0; //Used to map a button press to respective quarter
+
 	switch (Input_state){
 		case init:
 			PORTC = 0x00;
@@ -154,8 +192,6 @@ void TickFct_Input(){
 			break;
 
 		case wait:
-			PORTC = 0x00;
-			PORTD = ~(0x00);
 			if (buttons == 0x00){
 				Input_state = wait; 			
 			}
@@ -178,7 +214,8 @@ void TickFct_Input(){
 			break;
 
 		case check:
-			if (pressCount < round){
+			//check to see if correct input sequence is over
+			if (pressCount < round){ 
 				Input_state = wait;
 			}
 			else{
@@ -187,7 +224,7 @@ void TickFct_Input(){
 			break;
 
 		case done:
-			Input_state = wait;
+			Input_state = wait; //When called again, it will return here so set it back to wait
 			break;
 	}
 
@@ -196,14 +233,24 @@ void TickFct_Input(){
 			break;
 
 		case wait:
+			PORTC = 0x00;
+			PORTD = ~(0x00);
 			break;
 
 		case check:
+			//First light up for about a second and then turn off, to give time between input and game transitions
 			++pressCount;
 			if (press == 1){
 				while (loop < 50000){
 					PORTC = 0xE0;	
 					PORTD = ~(0x03);
+					++loop;
+				}
+				loop = 0;
+
+				while (loop < 50000){
+					PORTC = 0x00;	
+					PORTD = ~(0x00);
 					++loop;
 				}
 				loop = 0;
@@ -215,11 +262,25 @@ void TickFct_Input(){
 					++loop;
 				}
 				loop = 0;
+
+				while (loop < 50000){
+					PORTC = 0x00;	
+					PORTD = ~(0x00);
+					++loop;
+				}
+				loop = 0;
 			}
 			else if (press == 3){
 				while (loop < 50000){
 					PORTC = 0xE0;	
 					PORTD = ~(0x18);
+					++loop;
+				}
+				loop = 0;
+
+				while (loop < 50000){
+					PORTC = 0x00;	
+					PORTD = ~(0x00);
 					++loop;
 				}
 				loop = 0;
@@ -231,33 +292,40 @@ void TickFct_Input(){
 					++loop;
 				}
 				loop = 0;
+
+				while (loop < 50000){
+					PORTC = 0x00;	
+					PORTD = ~(0x00);
+					++loop;
+				}
+				loop = 0;
 			}
 
-
+			//Check if the button pressed is the correct one according to the game sequence
 			if (press == Simon[pressCount - 1]){
 				++correctPresses;
 			}
 			break;
 
 		case done: 
+			//End input
 			inputDone = true;
 			break;
 	}
 }
 
-
+//=============================================================================================
 
 int main(void) {
 	/* Insert DDR and PORT initializations */
 	DDRA = 0x00; PORTA = 0xFF;
-    	DDRC = 0xFF; PORTC = 0x00;
+   	DDRC = 0xFF; PORTC = 0x00;
 	DDRD = 0xFF; PORTD = 0x00;
 
 
 	unsigned long Menu_elapsedTime = 100;
     	//unsigned long Game_elapsedTime = 1000;
     	//unsigned long Input_elapsedTime = 100;
-
 
 	const unsigned char timerPeriod = 50;
 
@@ -267,56 +335,53 @@ int main(void) {
 	TimerOn();
 
 	Menu_state = waitOn; //initial state for menu
-	Game_state = sequence;
+	Game_state = sequence; 
 	Input_state = init;
 		
 
 	unsigned long j = 0;
 	bool gameOver = false; 
 	while (1) {
-        	if (!start){ //menu function independent as it should only run when the game isn't being played
+        	if (!start){ 
 			if (Menu_elapsedTime >= 100){
             			TickFct_Menu();
 				Menu_elapsedTime = 0;
 			}
         	}
         	else{
-				round = 1;
-				while (!gameOver){
-					correctPresses = 0;
-					TickFct_Game();
-					while (!inputDone){
-						if (j >= 1000){
-							TickFct_Input();
-							j = 0;	
-						}
-						++j;
+			round = 1;
+			while (!gameOver){
+				correctPresses = 0;
+				TickFct_Game();
+				while (!inputDone){
+					if (j >= 1000){
+						TickFct_Input();
+						j = 0;	
 					}
-					inputDone = false; 
+					++j;
+				}
+				inputDone = false; 
 
-					if (correctPresses == round){
-						if (round == levels){
-							gameOver = true;
-							start = false;
-						}
-						else{
-							++round;
-						}
-					}
-					else{
+				if (correctPresses == round){
+					if (round == levels){
 						gameOver = true;
 						start = false;
 					}
+					else{
+						++round;
+					}
 				}
+				else{
+					gameOver = true;
+					start = false;
+				}
+			}
         	}
-
 		
 		while(!TimerFlag){};
 		TimerFlag = 0;
 		Menu_elapsedTime += timerPeriod;
 
 	}
-	
 	return 1;
 }
-
