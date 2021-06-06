@@ -20,25 +20,27 @@
 #include "../header/timer.h"
 #include "../header/scheduler.h"
 #include "stdbool.h"
+#include "stdlib.h"
+#include "time.h"
 
 //=======================Global Variables=====================================================
 static bool start = false; //Determine whether game has started or not
 static bool inputDone = false; //Determine whether user input is finished
+bool gameOver = false; //Determine whether game is over or not
 static unsigned char correctPresses = 0; //Keeps track if the user is pressing correct sequence
 static unsigned char pressCount = 0; //Kepps track of how many buttons have been pressed
 static unsigned char round = 0; //Keeps track of current round
 const unsigned char levels = 5; //Total number of rounds
-char Simon[5] = {1, 2, 2, 3, 4}; //Array that holds the sequence. Numbers 1-4 are mapped to the 4 quarters
-			  //1 = Top Left; 2 = Top Right; 3 = Bottom Left; 4 = Bottom Right
-
-
+int Simon[5]; //Array that holds the sequence. Numbers 1-4 are mapped to the 4 quarters
+			        //1 = Top Left; 2 = Top Right; 3 = Bottom Left; 4 = Bottom Right
 //=============================================================================================
 
 
 //=======================Enum declarations=====================================================
 enum Menu_States {waitOn, waitOff, input} Menu_state;
 enum Game_States {sequence} Game_state;
-enum Input_states {init, wait, check, done} Input_state;
+enum Input_States {init, wait, check, done} Input_state;
+enum GameWon_States {celebration} GameWon_state;
 //=============================================================================================
 
 
@@ -102,7 +104,7 @@ void TickFct_Menu(){
 //Function will display sequence according to current round.
 //This must be done in one tick of the function, so there is only one state.
 void TickFct_Game(){ 
-	unsigned char quarter = 0; //Used to check which quarter should light up according to the sequence
+	unsigned int quarter = 0; //Used to check which quarter should light up according to the sequence
 	unsigned long loop = 0; //Used to light LED for about a second since this is done in one tick
 	
 	switch (Game_state) {
@@ -307,6 +309,10 @@ void TickFct_Input(){
 			if (press == Simon[pressCount - 1]){
 				++correctPresses;
 			}
+			else{
+				gameOver = true;
+				start = false;
+			}
 			break;
 
 		case done: 
@@ -316,12 +322,47 @@ void TickFct_Input(){
 	}
 }
 
-//=============================================================================================
+void TickFct_GameWon(){
+	unsigned long loop = 0;
+
+	switch (GameWon_state){
+		case celebration:
+			while (loop < 100000){
+				PORTC = 0xFF;	
+				PORTD = 0x00;
+				++loop;
+			}
+			loop = 0;
+
+			while (loop < 100000){
+				PORTC = 0x00;	
+				PORTD = ~(0x00);
+				++loop;
+			}
+			loop = 0;
+
+			while (loop < 100000){
+				PORTC = 0xFF;	
+				PORTD = 0x00;
+				++loop;
+			}
+			loop = 0;
+
+			while (loop < 100000){
+				PORTC = 0x00;	
+				PORTD = ~(0x00);
+				++loop;
+			}
+			loop = 0;
+			break;
+	}			
+}
+
 
 int main(void) {
 	/* Insert DDR and PORT initializations */
 	DDRA = 0x00; PORTA = 0xFF;
-   	DDRC = 0xFF; PORTC = 0x00;
+    	DDRC = 0xFF; PORTC = 0x00;
 	DDRD = 0xFF; PORTD = 0x00;
 
 
@@ -331,56 +372,67 @@ int main(void) {
 
 	const unsigned char timerPeriod = 50;
 
+	//Populate game array with random values
+	srand((int)time(0)); // Unique seed
+	for (unsigned int i = 0; i < levels; ++i){
+		Simon[i] = ((rand() % 4) + 1);
+	}
 
 	//Set the timer and turn it on
 	TimerSet(timerPeriod);
 	TimerOn();
 
-	Menu_state = waitOn; //initial state for menu
+	//Initial states for SMs
+	Menu_state = waitOn; 
 	Game_state = sequence; 
 	Input_state = init;
+	GameWon_state = celebration;
 		
 
-	unsigned long j = 0;
-	bool gameOver = false; 
+	unsigned long j = 0; //used to tick input function 
 	while (1) {
-        	if (!start){ 
-			if (Menu_elapsedTime >= 100){
+        	if (!start){  //menu function as long as there's no input
+				if (Menu_elapsedTime >= 100){
             			TickFct_Menu();
-				Menu_elapsedTime = 0;
-			}
+						Menu_elapsedTime = 0;
+				}
         	}
         	else{
-			gameOver = false;
-			round = 1;
-			while (!gameOver){
-				TickFct_Game();
-				while (!inputDone){
-					if (j >= 1000){
-						TickFct_Input();
-						j = 0;	
+				gameOver = false; //reset variables
+				round = 1;
+				while (!gameOver){
+					TickFct_Game(); //Display sequence
+					while (!inputDone){
+						if (j >= 1000){
+							TickFct_Input(); //Get user input
+							if (gameOver){
+								break;
+							}
+							j = 0;	
+						}
+						++j;
 					}
-					++j;
-				}
-				inputDone = false; 
+					inputDone = false; //reset variable
 
-				if (correctPresses == round){
-					if (round == levels){
+					if (correctPresses == round){ //check if the sequence inputted was correct
+						if (round == levels){
+							gameOver = true;
+							start = false;
+							TickFct_GameWon();
+						}
+						else{
+							++round;
+						}
+					}
+					else{
 						gameOver = true;
 						start = false;
 					}
-					else{
-						++round;
-					}
+					correctPresses = 0;
+					pressCount = 0;
 				}
-				else{
-					gameOver = true;
-					start = false;
-				}
-				correctPresses = 0;
-				pressCount = 0;
-			}
         	}
+
 		
 		while(!TimerFlag){};
 		TimerFlag = 0;
