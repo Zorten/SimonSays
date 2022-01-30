@@ -1,4 +1,4 @@
-#Simon Says
+# Simon Says
 This is my project for a "Simon Says" game, which I implemented on a breadboard with the ATMEGA 1284P-PU Microcontroller, an LED Matrix, some buttons and a Pulse Width Modulator.
 The LED Matrix is used to represent four quadrants, which are mapped to four buttons. When the program is started, the quadrants flash until the player presses any of the buttons. 
 After starting, the game will begin by lighting up a quadrant and making a sound with a pitch unique to that quadrant. The player must press the button corresponding to that quadrant. 
